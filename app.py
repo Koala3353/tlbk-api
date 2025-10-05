@@ -10,7 +10,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+
+# Configure CORS with explicit settings
+CORS(app, 
+     resources={r"/*": {"origins": "*"}},
+     allow_headers=["Content-Type", "Authorization"],
+     methods=["GET", "POST", "OPTIONS"],
+     supports_credentials=False)
 
 # MongoDB connection settings
 MONGODB_URI = os.environ.get('MONGODB_URI')
@@ -52,12 +58,34 @@ def home():
         "message": "TLB Kitchen Custom Orders API",
         "status": "running",
         "endpoints": [
-            "/api/categories",
-            "/api/find",
-            "/api/findOne",
-            "/api/aggregate"
+            "/health - Health check",
+            "/api/categories - Get categories",
+            "/api/find - Find documents",
+            "/api/findOne - Find one document",
+            "/api/aggregate - Aggregate query"
         ]
-    })
+    }), 200
+
+@app.route('/health')
+def health():
+    """Health check endpoint with MongoDB connection test"""
+    health_status = {
+        "status": "healthy",
+        "api": "running"
+    }
+    
+    try:
+        db = get_db()
+        # Test MongoDB connection
+        db.command('ping')
+        health_status["database"] = "connected"
+        health_status["database_name"] = DATABASE_NAME
+        return jsonify(health_status), 200
+    except Exception as e:
+        health_status["status"] = "unhealthy"
+        health_status["database"] = "disconnected"
+        health_status["error"] = str(e)
+        return jsonify(health_status), 503
 
 @app.route('/api/categories', methods=['GET'])
 def get_categories():
@@ -199,17 +227,7 @@ def count():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Health check endpoint for Render
-@app.route('/health', methods=['GET'])
-def health_check():
-    try:
-        # Ping the database to check connection
-        db = get_db()
-        _client.admin.command('ping')
-        return jsonify({"status": "healthy", "database": "connected"}), 200
-    except Exception as e:
-        return jsonify({"status": "unhealthy", "error": str(e)}), 500
-
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
+    print(f"Starting Flask app on port {port}...")
     app.run(host='0.0.0.0', port=port, debug=False)
